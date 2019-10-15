@@ -340,6 +340,64 @@ where
     pub fn count_of(&self, val: &K) -> usize {
         self.elem_counts.get(val).map_or(0, |x| *x)
     }
+
+    /// Returns an iterator over the union of the two sets.
+    ///
+    /// This entails visiting each key the maximum number of times it appears in either set.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use multiset::HashMultiSet;
+    ///
+    /// let set1: HashMultiSet<_> = [1, 1, 2].iter().cloned().collect();
+    /// let set2: HashMultiSet<_> = [2, 2, 3].iter().cloned().collect();
+    /// let set_union: HashMultiSet<_> = set1.union(&set2).map(|(&key, count)| (key, count)).collect();
+    /// assert_eq!(set_union.count_of(&1), 2);
+    /// assert_eq!(set_union.count_of(&2), 2);
+    /// assert_eq!(set_union.count_of(&3), 1);
+    /// ```
+    pub fn union<'a>(&'a self, other: &'a HashMultiSet<K>) -> Union<'a, K> {
+        Union {
+            set1: self,
+            set2: other,
+            set1_iter: self.elem_counts.iter(),
+            set2_iter: other.elem_counts.iter(),
+            done_with_set1_iter: false,
+        }
+    }
+}
+
+pub struct Union<'a, K> {
+    set1: &'a HashMultiSet<K>,
+    set2: &'a HashMultiSet<K>,
+    set1_iter: std::collections::hash_map::Iter<'a, K, usize>,
+    set2_iter: std::collections::hash_map::Iter<'a, K, usize>,
+    done_with_set1_iter: bool,
+}
+
+impl<'a, K> Iterator for Union<'a, K>
+where
+    K: Eq + Hash,
+{
+    type Item = (&'a K, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if !self.done_with_set1_iter{
+            let next = self.set1_iter.next();
+            if let Some((key, count)) = next {
+                let max_count = std::cmp::max(*count, self.set2.count_of(key));
+                return Some((key, max_count));
+            }
+            self.done_with_set1_iter= true;
+        }
+        while let Some((key, count)) = self.set2_iter.next() {
+            if !self.set1.contains(key) {
+                return Some((key, *count));
+            }
+        }
+        None
+    }
 }
 
 impl<T> Add for HashMultiSet<T>
@@ -442,6 +500,38 @@ where
         let mut multiset: HashMultiSet<A> = HashMultiSet::new();
         for elem in iterable.into_iter() {
             multiset.insert(elem);
+        }
+        multiset
+    }
+}
+
+impl<K> FromIterator<(K, usize)> for HashMultiSet<K>
+where
+    K: Eq + Hash,
+{
+    /// Creates a new `HashMultiSet` from the elements in an iterable.
+    ///
+    /// # Examples
+    ///
+    /// Count occurrences of each `char` in `"hello world"`:
+    ///
+    /// ```
+    /// use multiset::HashMultiSet;
+    /// use std::iter::FromIterator;
+    ///
+    /// let vals = vec!['h','e','l','l','o',' ','w','o','r','l','d'];
+    /// let multiset: HashMultiSet<char> = FromIterator::from_iter(vals);
+    /// assert_eq!(1, multiset.count_of(&'h'));
+    /// assert_eq!(3, multiset.count_of(&'l'));
+    /// assert_eq!(0, multiset.count_of(&'z'));
+    /// ```
+    fn from_iter<T>(iterable: T) -> HashMultiSet<K>
+    where
+        T: IntoIterator<Item = (K, usize)>,
+    {
+        let mut multiset: HashMultiSet<K> = HashMultiSet::new();
+        for (elem, count) in iterable.into_iter() {
+            multiset.insert_times(elem, count);
         }
         multiset
     }
@@ -556,5 +646,15 @@ mod test_multiset {
         assert_eq!(set.len(), 1);
         set.remove(&'d');
         assert_eq!(set.len(), 0);
+    }
+
+    #[test]
+    fn test_union() {
+        let set1: HashMultiSet<_> = [1, 1, 2].iter().cloned().collect();
+        let set2: HashMultiSet<_> = [2, 2, 3].iter().cloned().collect();
+        let set_union: HashMultiSet<_> = set1.union(&set2).map(|(&key, count)| (key, count)).collect();
+        assert_eq!(set_union.count_of(&1), 2);
+        assert_eq!(set_union.count_of(&2), 2);
+        assert_eq!(set_union.count_of(&3), 1);
     }
 }
