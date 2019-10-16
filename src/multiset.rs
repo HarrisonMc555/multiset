@@ -17,8 +17,11 @@ use std::iter::{FromIterator, IntoIterator};
 use std::ops::{Add, Sub};
 
 /// A hash-based multiset.
-#[derive(Clone)]
-pub struct HashMultiSet<K> {
+#[derive(Clone, Default)]
+pub struct HashMultiSet<K>
+where
+    K: Eq + Hash,
+{
     elem_counts: HashMap<K, usize>,
     size: usize,
 }
@@ -26,21 +29,13 @@ pub struct HashMultiSet<K> {
 /// An iterator over the items of a `HashMultiSet`.
 ///
 /// This `struct` is created by the [`iter`] method on [`HashMultiSet`].
+#[derive(Clone)]
 pub struct Iter<'a, K: 'a> {
     iter: hash_map::Iter<'a, K, usize>,
     duplicate: Option<(&'a K, &'a usize)>,
     duplicate_index: usize,
 }
 
-impl<'a, K> Clone for Iter<'a, K> {
-    fn clone(&self) -> Iter<'a, K> {
-        Iter {
-            iter: self.iter.clone(),
-            duplicate: self.duplicate.clone(),
-            duplicate_index: self.duplicate_index,
-        }
-    }
-}
 impl<'a, K> Iterator for Iter<'a, K> {
     type Item = &'a K;
 
@@ -192,7 +187,7 @@ where
     /// assert!(distinct.contains(&2));
     /// assert!(!distinct.contains(&3));
     /// ```
-    pub fn distinct_elements<'a>(&'a self) -> Keys<'a, K, usize> {
+    pub fn distinct_elements(&self) -> Keys<K, usize> {
         self.elem_counts.keys()
     }
 
@@ -286,17 +281,13 @@ where
     /// assert!(multiset.count_of(&5) == 0);
     /// ```
     pub fn remove_times(&mut self, val: &K, times: usize) -> usize {
-        {
-            let entry = self.elem_counts.get_mut(val);
-            if entry.is_some() {
-                let count = entry.unwrap();
-                if *count > times {
-                    *count -= times;
-                    self.size -= times;
-                    return times;
-                }
-                self.size -= *count;
+        if let Some(count) = self.elem_counts.get_mut(val) {
+            if *count > times {
+                *count -= times;
+                self.size -= times;
+                return times;
             }
+            self.size -= *count;
         }
         self.elem_counts.remove(val).unwrap_or(0)
     }
@@ -556,5 +547,25 @@ mod test_multiset {
         assert_eq!(set.len(), 1);
         set.remove(&'d');
         assert_eq!(set.len(), 0);
+    }
+
+    #[test]
+    fn test_remove_times() {
+        let mut set = HashMultiSet::new();
+
+        set.insert_times('a', 5);
+        assert_eq!(set.len(), 5);
+        assert_eq!(set.remove_times(&'a', 2), 2);
+        assert_eq!(set.count_of(&'a'), 3);
+        assert_eq!(set.len(), 3);
+
+        set.insert_times('b', 7);
+        assert_eq!(set.len(), 10);
+        assert_eq!(set.remove_times(&'b', 2), 2);
+        assert_eq!(set.count_of(&'b'), 5);
+        assert_eq!(set.len(), 8);
+        assert_eq!(set.remove_times(&'b', 10), 5);
+        assert_eq!(set.count_of(&'b'), 0);
+        assert_eq!(set.len(), 3);
     }
 }
