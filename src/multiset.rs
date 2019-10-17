@@ -17,7 +17,7 @@ use std::iter::{FromIterator, IntoIterator};
 use std::ops::{Add, Sub};
 
 /// A hash-based multiset.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Eq)]
 pub struct HashMultiSet<K>
 where
     K: Eq + Hash,
@@ -40,18 +40,15 @@ impl<'a, K> Iterator for Iter<'a, K> {
     type Item = &'a K;
 
     fn next(&mut self) -> Option<&'a K> {
-        if self.duplicate.is_none() {
-            self.duplicate = self.iter.next();
-        }
-        if self.duplicate.is_some() {
-            let (key, count) = self.duplicate.unwrap();
+        if let Some((key, count)) = self.duplicate {
             self.duplicate_index += 1;
-            if &self.duplicate_index >= count {
+            if self.duplicate_index >= *count {
                 self.duplicate = None;
                 self.duplicate_index = 0;
             }
             Some(key)
         } else {
+            self.duplicate = self.iter.next();
             None
         }
     }
@@ -431,7 +428,7 @@ where
         T: IntoIterator<Item = A>,
     {
         let mut multiset: HashMultiSet<A> = HashMultiSet::new();
-        for elem in iterable.into_iter() {
+        for elem in iterable {
             multiset.insert(elem);
         }
         multiset
@@ -452,8 +449,6 @@ where
             .all(|(key, count)| other.contains(key) && other.elem_counts.get(key).unwrap() == count)
     }
 }
-
-impl<T> Eq for HashMultiSet<T> where T: Eq + Hash {}
 
 impl<T> fmt::Debug for HashMultiSet<T>
 where
