@@ -40,15 +40,17 @@ impl<'a, K> Iterator for Iter<'a, K> {
     type Item = &'a K;
 
     fn next(&mut self) -> Option<&'a K> {
+        if self.duplicate.is_none() {
+            self.duplicate = self.iter.next();
+        }
         if let Some((key, count)) = self.duplicate {
             self.duplicate_index += 1;
-            if self.duplicate_index >= *count {
+            if &self.duplicate_index >= count {
                 self.duplicate = None;
                 self.duplicate_index = 0;
             }
             Some(key)
         } else {
-            self.duplicate = self.iter.next();
             None
         }
     }
