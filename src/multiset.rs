@@ -464,6 +464,15 @@ mod test_multiset {
     use super::HashMultiSet;
 
     #[test]
+    fn test_iterate_simple() {
+        let src = [0, 1, 1, 2, 10];
+        let set = src.iter().cloned().collect::<HashMultiSet<_>>();
+        let mut keys = set.iter().cloned().collect::<Vec<_>>();
+        keys.sort();
+        assert_eq!(keys, src);
+    }
+
+    #[test]
     fn test_iterate() {
         let mut a = HashMultiSet::new();
         for i in 0..16 {
